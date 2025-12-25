@@ -8,9 +8,12 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist
 dist-ssr
 *.local
+
+# docs folder is used for GitHub Pages hosting
+# docs
 
 # Editor directories and files
 .vscode/*
