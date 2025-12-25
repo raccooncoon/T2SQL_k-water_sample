@@ -69,7 +69,7 @@ import RelationshipsTab from './components/RelationshipsTab';
 import { tables, scenarioList, visualPresets } from './constants/data.jsx';
 
 const App = () => {
-    const [activeTab, setActiveTab] = useState('query');
+    const [activeTab, setActiveTab] = useState('explorer');
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isExecuting, setIsExecuting] = useState(false);
@@ -88,16 +88,16 @@ const App = () => {
     const [aiInsight, setAiInsight] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [isQuerySidebarOpen, setIsQuerySidebarOpen] = useState(false);
+    const [isQuerySidebarOpen, setIsQuerySidebarOpen] = useState(true);
     const [sqlAudit, setSqlAudit] = useState(null);
     const [isAuditing, setIsAuditing] = useState(false);
     const [analysisReport, setAnalysisReport] = useState('');
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-    const [selectedTables, setSelectedTables] = useState(['tb_dam_info', 'tb_dam_obs_h']);
+    const [selectedTables, setSelectedTables] = useState([]);
     const [tableSearchPrompt, setTableSearchPrompt] = useState('');
     const [isTableSearching, setIsTableSearching] = useState(false);
-    const [joinRules, setJoinRules] = useState([{ id: 'r1', leftTable: 'tb_dam_info', leftCol: 'dam_cd', type: 'INNER JOIN', rightTable: 'tb_dam_obs_h', rightCol: 'dam_cd' }]);
+    const [joinRules, setJoinRules] = useState([]);
     const [isRelationshipSearching, setIsRelationshipSearching] = useState(false);
 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || ""; // API Key should be handled securely
@@ -105,6 +105,50 @@ const App = () => {
     const getTableColumns = (tableId) => tables.find(t => t.id === tableId)?.columns || [];
     const currentChartData = useMemo(() => history.find(h => h.id === selectedHistoryId)?.results || queryResult, [history, selectedHistoryId, queryResult]);
     const availableColumns = useMemo(() => currentChartData?.length ? Object.keys(currentChartData[0]) : [], [currentChartData]);
+
+    useEffect(() => {
+        // 테이블 선택 변경에 따른 JOIN 규칙 자동 동기화
+        setJoinRules(prev => {
+            // 1. 선택 해제된 테이블과 관련된 규칙 제거
+            let updatedRules = prev.filter(rule => 
+                selectedTables.includes(rule.leftTable) && selectedTables.includes(rule.rightTable)
+            );
+
+            // 2. 새롭게 추가된 테이블에 대해 가능한 관계 자동 생성
+            selectedTables.forEach(t1Id => {
+                selectedTables.forEach(t2Id => {
+                    if (t1Id === t2Id) return;
+
+                    // 이미 관계가 정의되어 있는지 확인
+                    const exists = updatedRules.some(r => 
+                        (r.leftTable === t1Id && r.rightTable === t2Id) || 
+                        (r.leftTable === t2Id && r.rightTable === t1Id)
+                    );
+                    if (exists) return;
+
+                    const t1 = tables.find(t => t.id === t1Id);
+                    const t2 = tables.find(t => t.id === t2Id);
+                    if (!t1 || !t2) return;
+
+                    // 공통 컬럼 찾기 (예: dam_cd, stn_cd, obs_dt 등)
+                    const commonCols = t1.columns.filter(c => t2.columns.includes(c) && (c.endsWith('_cd') || c.endsWith('_id')));
+                    
+                    if (commonCols.length > 0) {
+                        updatedRules.push({
+                            id: `auto-${t1Id}-${t2Id}`,
+                            leftTable: t1Id,
+                            leftCol: commonCols[0],
+                            type: 'INNER JOIN',
+                            rightTable: t2Id,
+                            rightCol: commonCols[0]
+                        });
+                    }
+                });
+            });
+
+            return [...updatedRules];
+        });
+    }, [selectedTables]);
 
     useEffect(() => {
         const item = history.find(h => h.id === selectedHistoryId);
@@ -116,22 +160,73 @@ const App = () => {
     }, [selectedHistoryId, history]);
 
     const callGemini = async (userQuery, systemPrompt, isJson = false) => {
-        if (!apiKey) {
-            console.warn("API Key is missing. Please set VITE_GEMINI_API_KEY in your environment.");
+        // API 호출 대신 샘플 데이터를 반환하는 시뮬레이션 모드로 전환
+        console.log("Running in Simulation Mode (No API Key used)");
+        await new Promise(r => setTimeout(r, 800)); // 실제 AI처럼 약간의 지연 시간
+
+        // 1. SQL 진단 (Audit) 요청인 경우
+        if (systemPrompt.includes("SQL 진단 전문가")) {
+            return JSON.stringify({
+                score: 92,
+                analysis: "작성된 쿼리는 인덱스를 효율적으로 사용하며 표준 SQL 문법을 준수하고 있습니다.",
+                suggestions: ["JOIN 성능 최적화를 위한 조건 추가", "가독성 향상을 위한 별칭 사용 권장"]
+            });
         }
-        const maxRetries = 3;
-        for (let i = 0; i < maxRetries; i++) {
-            try {
-                const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
-                if (isJson) payload.generationConfig = { responseMimeType: "application/json" };
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error('API Error');
-                const result = await response.json();
-                return result.candidates?.[0]?.content?.parts?.[0]?.text;
-            } catch (error) { if (i === maxRetries - 1) throw error; await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i))); }
+
+        // 2. JOIN 관계 제안 요청인 경우
+        if (systemPrompt.includes("JOIN 관계 제안")) {
+            return JSON.stringify([
+                { leftTable: "tb_dam_info", leftCol: "dam_cd", type: "INNER JOIN", rightTable: "tb_dam_obs_h", rightCol: "dam_cd" }
+            ]);
         }
+
+        // 3. 테이블 선택 요청인 경우
+        if (systemPrompt.includes("관련 테이블 ID JSON")) {
+            if (userQuery.includes("강수")) return JSON.stringify(["rf_stn_info", "rf_obs_h"]);
+            if (userQuery.includes("수질")) return JSON.stringify(["tb_dam_info", "wq_obs_h"]);
+            if (userQuery.includes("운영") || userQuery.includes("발전")) return JSON.stringify(["tb_dam_info", "tb_dam_op_h"]);
+            if (userQuery.includes("유역")) return JSON.stringify(["tb_basin_info"]);
+            return JSON.stringify(["tb_dam_info", "tb_dam_obs_h"]);
+        }
+
+        // 4. SQL 정교화 (Refine) 요청인 경우
+        if (systemPrompt.includes("SQL 전문가. JSON")) {
+            return JSON.stringify({
+                explanation: "요청하신 필터 조건을 추가하고 시간 정렬을 최적화했습니다.",
+                refinedSql: "SELECT t1.dam_nm AS '댐명', t2.obs_dt AS '관측일시', t2.cur_lvl AS '현재수위'\nFROM tb_dam_info t1\nJOIN tb_dam_obs_h t2 ON t1.dam_cd = t2.dam_cd\nWHERE t1.dam_nm LIKE '%댐%'\nORDER BY t2.obs_dt DESC\nLIMIT 10;"
+            });
+        }
+
+        // 5. 데이터 시뮬레이션 요청인 경우
+        if (systemPrompt.includes("데이터 시뮬레이션")) {
+            const mockData = Array.from({ length: 10 }).map((_, i) => ({
+                '댐명': i % 2 === 0 ? '소양강댐' : '충주댐',
+                '관측일시': `2025-12-26 ${String(10 + i).padStart(2, '0')}:00`,
+                '현재수위': 185.0 + (Math.random() * 5),
+                '유입량': 400.0 + (Math.random() * 100),
+                '방류량': 300.0 + (Math.random() * 50)
+            }));
+            return JSON.stringify(mockData);
+        }
+
+        // 6. 시각화 인사이트 요청인 경우
+        if (systemPrompt.includes("시각화 전문가")) {
+            return JSON.stringify({
+                chartType: "area",
+                xAxis: "관측일시",
+                yAxis: "현재수위",
+                title: "시간대별 수위 변동 추이",
+                insight: "최근 12시간 동안 수위가 완만하게 상승하는 추세이며, 임계치 도달까지 여유가 있습니다."
+            });
+        }
+
+        // 7. 보고서 생성 요청인 경우
+        if (systemPrompt.includes("경영진 전략 보고서")) {
+            return "# K-WATER 수문 데이터 분석 보고서\n\n## 1. 분석 개요\n본 보고서는 현재 주요 댐의 수위 및 유입량을 기반으로 전략적 의사결정을 지원하기 위해 작성되었습니다.\n\n| 댐 이름 | 평균 수위 | 최대 유입량 | 상태 |\n| :--- | :--- | :--- | :--- |\n| 소양강댐 | 187.5m | 520.0 | 정상 |\n| 충주댐 | 142.2m | 480.0 | 주의 |\n\n## 2. 주요 통찰\n- **소양강댐**의 유입량이 전주 대비 15% 증가했습니다.\n- **방류량 조절**을 통해 하류 수위를 안정적으로 유지 중입니다.\n\n## 3. 향후 권고 사항\n- 집중호우 대비 예비 방류 검토 필요.\n- 실시간 모니터링 강화.";
+        }
+
+        // 8. 기본 SQL 생성 요청 (마지막 순서)
+        return "SELECT \n  t1.dam_nm AS '댐명', \n  t2.obs_dt AS '관측일시', \n  t2.cur_lvl AS '현재수위', \n  t3.temp AS '수온', \n  t3.ph AS '수소이온농도', \n  t4.hr_rf AS '시강수량'\nFROM tb_dam_info t1\nJOIN tb_dam_obs_h t2 ON t1.dam_cd = t2.dam_cd\nLEFT JOIN wq_obs_h t3 ON t1.dam_cd = t3.dam_cd AND t2.obs_dt = t3.obs_dt\nLEFT JOIN rf_obs_h t4 ON t2.obs_dt = t4.obs_dt\nORDER BY t2.obs_dt DESC\nLIMIT 10;";
     };
 
     const handleAiRelationshipSuggestion = async (targetTableIds = selectedTables) => {
@@ -145,16 +240,37 @@ const App = () => {
         } catch (e) {} finally { setIsRelationshipSearching(false); }
     };
 
-    const handleAiTableSelection = async () => {
-        if (!tableSearchPrompt) return;
+    const handleAiTableSelection = async (overridePrompt) => {
+        const targetPrompt = overridePrompt || tableSearchPrompt;
+        if (!targetPrompt) return;
         setIsTableSearching(true);
         try {
-            const res = await callGemini(tableSearchPrompt, `관련 테이블 ID JSON 배열 응답. [tb_dam_info, tb_dam_obs_h, rf_stn_info, rf_obs_h]`, true);
+            // "랜덤" 또는 "random" 키워드가 포함된 경우에만 랜덤 선택 유지
+            if (targetPrompt.includes('랜덤') || targetPrompt.includes('random')) {
+                const shuffled = [...tables].sort(() => 0.5 - Math.random());
+                const count = Math.floor(Math.random() * 3) + 2; // 2~4개
+                const newIds = shuffled.slice(0, count).map(t => t.id);
+                setSelectedTables(newIds);
+                if (newIds.length >= 2) await handleAiRelationshipSuggestion(newIds);
+                setTableSearchPrompt("");
+                return;
+            }
+
+            const tableContext = tables.map(t => `${t.id}: ${t.name} - ${t.description} (${t.columns.join(', ')})`).join('\n');
+            const res = await callGemini(
+                `사용자 요청: ${targetPrompt}\n\n사용 가능한 테이블 정보:\n${tableContext}`, 
+                `관련 테이블 ID JSON: 사용자 요청과 가장 관련이 높은 테이블들을 위 목록에서 선택하여 ID들을 JSON 배열로 응답하세요. 예: ["tb_dam_info", "tb_dam_obs_h"]`, 
+                true
+            );
             const newIds = JSON.parse(res);
-            setSelectedTables(newIds);
-            if (newIds.length >= 2) await handleAiRelationshipSuggestion(newIds);
+            if (Array.isArray(newIds)) {
+                setSelectedTables(newIds);
+                if (newIds.length >= 2) await handleAiRelationshipSuggestion(newIds);
+            }
             setTableSearchPrompt("");
-        } catch (e) {} finally { setIsTableSearching(false); }
+        } catch (e) {
+            console.error("Table selection error:", e);
+        } finally { setIsTableSearching(false); }
     };
 
     const handleGenerateSql = async () => {
@@ -162,10 +278,19 @@ const App = () => {
         setIsGenerating(true);
         setQueryResult(null);
         setIsComparing(false);
-        const tableContext = tables.filter(t => selectedTables.includes(t.id)).map(t => `${t.name}(${t.id}): [${t.columns.join(',')}]`).join('\n');
+        setSqlAudit(null);
+        const tableContext = tables.filter(t => selectedTables.includes(t.id)).map(t => {
+            const colsWithNames = t.columns.map(c => `${c}(${t.columnNames[c] || ''})`).join(',');
+            return `${t.name}(${t.id}): [${colsWithNames}]`;
+        }).join('\n');
         const manualJoins = joinRules.map(r => `${r.leftTable}.${r.leftCol} ${r.type} ${r.rightTable}.${r.rightCol}`).join('\n');
         try {
-            const sql = await callGemini(prompt, `Pretty SQL 코드만 출력. 스키마:\n${tableContext}\n조인 가이드:\n${manualJoins}`);
+            const sql = await callGemini(prompt, `Pretty SQL 코드만 출력. 
+            [제약사항] 모든 SELECT 컬럼에는 반드시 'AS'를 사용하여 한글 별칭을 붙이세요. 예: SELECT t1.dam_nm AS '댐명'
+            스키마:
+            ${tableContext}
+            조인 가이드:
+            ${manualJoins}`);
             const cleanedSql = (sql || "").replace(/```sql|```/g, '').trim();
             setGeneratedSql(cleanedSql);
             const newItem = { id: Date.now(), prompt, sql: cleanedSql, timestamp: new Date().toLocaleTimeString(), results: null };
@@ -177,6 +302,7 @@ const App = () => {
     const handleRefineSql = async () => {
         if (!refineInstruction || !generatedSql) return;
         setIsRefining(true);
+        setSqlAudit(null);
         try {
             const res = await callGemini(`[SQL] ${generatedSql}\n[요청] ${refineInstruction}`, `SQL 전문가. JSON: {"explanation": "이유", "refinedSql": "수정된SQL"}`, true);
             const data = JSON.parse(res);
@@ -192,12 +318,18 @@ const App = () => {
         if (!generatedSql) return;
         setIsExecuting(true);
         try {
-            const res = await callGemini("데이터 시뮬레이션.", `질문 [${prompt}] 부합 수문 데이터 10행 JSON 배열 생성. 필드명 엄수: dam_nm, obs_dt, cur_lvl, inf_qty, otf_qty.`, true);
+            const res = await callGemini("데이터 시뮬레이션.", `질문 [${prompt}] 부합 수문 데이터 50행 JSON 배열 생성. 필드명 엄수: dam_nm, obs_dt, cur_lvl, inf_qty, otf_qty.`, true);
             const data = JSON.parse(res);
             setQueryResult(data);
             setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, results: data } : h));
         } catch (e) {
-            const mock = Array.from({ length: 10 }).map((_, i) => ({ dam_nm: '샘플댐', obs_dt: `12-26 ${i}:00`, cur_lvl: 185.0 + i, inf_qty: 400.0, otf_qty: 300.0 }));
+            const mock = Array.from({ length: 50 }).map((_, i) => ({ 
+                '댐명': i % 2 === 0 ? '소양강댐' : '충주댐', 
+                '관측일시': `12-26 ${Math.floor(i/2)}:00`, 
+                '현재수위': 185.0 + (i * 0.1), 
+                '유입량': 400.0 + i, 
+                '방류량': 300.0 + i 
+            }));
             setQueryResult(mock);
             setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, results: mock } : h));
         } finally { setIsExecuting(false); }
@@ -245,7 +377,7 @@ const App = () => {
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     };
 
-    const handleApplyRefinedSql = () => { setGeneratedSql(tempRefinedSql); setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, sql: tempRefinedSql } : h)); setIsComparing(false); setQueryResult(null); };
+    const handleApplyRefinedSql = () => { setGeneratedSql(tempRefinedSql); setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, sql: tempRefinedSql } : h)); setIsComparing(false); setQueryResult(null); setSqlAudit(null); };
     const handleDiscardRefinedSql = () => { setIsComparing(false); setTempRefinedSql(''); };
     const updateJoinRule = (id, field, value) => setJoinRules(joinRules.map(r => r.id === id ? { ...r, [field]: value } : r));
 

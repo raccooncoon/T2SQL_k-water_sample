@@ -21,35 +21,6 @@ const VisualizeTab = ({
     return (
         <div className="flex-1 overflow-auto custom-scrollbar p-6 space-y-4 text-left">
             <div className="w-full max-w-6xl mx-auto space-y-3 animate-in slide-in-from-top-2 text-left">
-                {(isAnalyzing || isGeneratingReport) && (
-                    <div className="h-0.5 w-full bg-emerald-900/20 rounded-full overflow-hidden mb-1 text-left">
-                        <div className="h-full bg-emerald-500 animate-progress origin-left shadow-[0_0_8px_rgba(16,185,129,1)] text-left" />
-                    </div>
-                )}
-                <div className="bg-white/[0.01] p-3 rounded-2xl border border-white/5 relative group shadow-sm text-left">
-                    <div className="flex items-center gap-3 px-2 text-left">
-                        <div className="p-2.5 bg-emerald-600/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0 shadow-inner">
-                            <Sparkles size={18} />
-                        </div>
-                        <div className="flex-1 relative flex items-center text-left">
-                            <input 
-                                value={visualizePrompt} 
-                                onChange={(e) => setVisualizePrompt(e.target.value)} 
-                                onKeyDown={(e) => e.key === 'Enter' && handleVisualizeInsight()} 
-                                placeholder="시각화 분석 요청을 입력하거나 아래 프리셋을 선택하십시오..." 
-                                className="w-full bg-transparent border-none text-slate-200 outline-none focus:ring-0 text-[11px] font-medium pr-28 py-1.5 text-left" 
-                            />
-                            <button 
-                                onClick={() => handleVisualizeInsight()} 
-                                disabled={isAnalyzing || !currentChartData || !visualizePrompt} 
-                                className="absolute right-0 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-900/20 text-left"
-                            >
-                                {isAnalyzing ? <RefreshCw className="animate-spin" size={12} /> : <Sparkles size={12} />} 분석 추천
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 <div className="flex flex-wrap gap-2 px-2 text-left">
                     {visualPresets.map((preset) => (
                         <button 
@@ -64,10 +35,44 @@ const VisualizeTab = ({
                         </button>
                     ))}
                 </div>
+
+                <div className="bg-white/[0.01] p-3 rounded-2xl border border-white/5 relative group shadow-sm text-left overflow-hidden">
+                    {isAnalyzing && (
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-900/20 overflow-hidden">
+                            <div className="h-full bg-emerald-500 animate-progress origin-left shadow-[0_0_8px_rgba(16,185,129,1)]" />
+                        </div>
+                    )}
+                    <div className="flex items-center gap-3 px-2 text-left">
+                        <div className="p-2.5 bg-emerald-600/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0 shadow-inner">
+                            <Sparkles size={18} />
+                        </div>
+                        <div className="flex-1 relative flex items-center text-left">
+                            <input 
+                                value={visualizePrompt} 
+                                onChange={(e) => setVisualizePrompt(e.target.value)} 
+                                onKeyDown={(e) => e.key === 'Enter' && handleVisualizeInsight()} 
+                                placeholder="시각화 분석 요청을 입력하거나 위에 있는 프리셋을 선택하십시오..."
+                                className="w-full bg-transparent border-none text-slate-200 outline-none focus:ring-0 text-[11px] font-medium pr-28 py-1.5 text-left" 
+                            />
+                            <button 
+                                onClick={() => handleVisualizeInsight()} 
+                                disabled={isAnalyzing || !currentChartData || !visualizePrompt} 
+                                className="absolute right-0 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-900/20 text-left"
+                            >
+                                {isAnalyzing ? <RefreshCw className="animate-spin" size={12} /> : <Sparkles size={12} />} 분석 추천
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div className="bg-white/[0.02] p-6 rounded-2xl border border-white/5 shadow-2xl w-full max-w-6xl mx-auto flex flex-col gap-6 text-left">
-                <div className="flex flex-wrap items-end justify-between gap-6 pb-6 border-b border-white/5 text-left">
+            <div className="bg-white/[0.02] p-6 rounded-2xl border border-white/5 shadow-2xl w-full max-w-6xl mx-auto flex flex-col gap-6 text-left relative overflow-hidden">
+                <div className="flex flex-wrap items-end justify-between gap-6 pb-6 border-b border-white/5 text-left relative">
+                    {isGeneratingReport && (
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-900/20 overflow-hidden z-10">
+                            <div className="h-full bg-blue-500 animate-progress origin-left shadow-[0_0_8px_rgba(59,130,246,1)]" />
+                        </div>
+                    )}
                     <div className="flex items-end gap-6 text-left">
                         <div className="flex flex-col gap-1.5 text-left">
                             <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1 text-left">차트 유형</label>
@@ -164,6 +169,12 @@ const VisualizeTab = ({
                         )}
                     </div>
 
+                    {aiInsight && (
+                        <div className="mt-8 p-6 bg-blue-600/5 border border-white/5 rounded-xl flex gap-6 animate-in slide-in-from-bottom-2 text-left shadow-sm">
+                            <BrainCircuit size={28} className="text-blue-500 shrink-0" />
+                            <p className="text-slate-400 text-[11px] font-medium leading-relaxed italic">{aiInsight}</p>
+                        </div>
+                    )}
                     {analysisReport && (
                         <div className="mt-8 p-10 bg-gradient-to-br from-blue-900/10 to-transparent border border-white/10 rounded-2xl animate-in fade-in slide-in-from-bottom-4 shadow-2xl relative overflow-hidden text-left pb-20">
                             <div className="absolute top-0 right-0 p-6 opacity-10">
@@ -209,12 +220,6 @@ const VisualizeTab = ({
                                     <div className="px-4 py-1 bg-white/5 rounded-full border border-white/5 text-[9px] text-slate-600 italic font-medium">분석 무결성 검증 완료: K-water AI Engine v2.5</div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                    {aiInsight && !analysisReport && (
-                        <div className="mt-8 p-6 bg-blue-600/5 border border-white/5 rounded-xl flex gap-6 animate-in slide-in-from-bottom-2 text-left shadow-sm">
-                            <BrainCircuit size={28} className="text-blue-500 shrink-0" />
-                            <p className="text-slate-400 text-[11px] font-medium leading-relaxed italic">{aiInsight}</p>
                         </div>
                     )}
                 </div>

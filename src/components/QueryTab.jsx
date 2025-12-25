@@ -1,7 +1,7 @@
 import React from 'react';
 import { ListOrdered, SearchCode, Sparkles, Terminal, RefreshCw, Code, Stethoscope, Play, Loader2, Wand2, Info, Check, X, LayoutDashboard, FileSpreadsheet, ChevronRight } from 'lucide-react';
 import SqlHighlighter from './SqlHighlighter';
-import { scenarioList } from '../constants/data';
+import { tables, scenarioList } from '../constants/data';
 
 const QueryTab = ({
     prompt,
@@ -29,6 +29,44 @@ const QueryTab = ({
     handleDownloadExcel,
     setActiveTab
 }) => {
+    const [visibleRows, setVisibleRows] = React.useState(10);
+    const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+    const tableLoaderRef = React.useRef(null);
+
+    React.useEffect(() => {
+        if (!queryResult) {
+            setVisibleRows(10);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && queryResult && visibleRows < queryResult.length && !isLoadingMore) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (tableLoaderRef.current) {
+            observer.observe(tableLoaderRef.current);
+        }
+
+        return () => {
+            if (tableLoaderRef.current) {
+                observer.unobserve(tableLoaderRef.current);
+            }
+        };
+    }, [visibleRows, isLoadingMore, queryResult]);
+
+    const loadMore = () => {
+        setIsLoadingMore(true);
+        setTimeout(() => {
+            setVisibleRows(prev => Math.min(prev + 10, queryResult.length));
+            setIsLoadingMore(false);
+        }, 500);
+    };
+
     return (
         <div className="flex-1 overflow-auto custom-scrollbar p-6 space-y-6 text-left">
             <div className="max-w-[1200px] mx-auto space-y-6 pb-24 text-left">
@@ -59,11 +97,14 @@ const QueryTab = ({
                     />
                     <div className="flex justify-between items-center pt-3 border-t border-white/5 mt-2 text-left">
                         <div className="flex flex-wrap gap-1 flex-1 text-left">
-                            {selectedTables.map(id => (
-                                <span key={id} className="px-2 py-0.5 bg-blue-500/5 text-blue-400 text-[8px] font-black rounded-lg border border-blue-500/10 uppercase tracking-widest whitespace-nowrap h-fit">
-                                    {id}
-                                </span>
-                            ))}
+                            {selectedTables.map(id => {
+                                const table = tables.find(t => t.id === id);
+                                return (
+                                    <span key={id} className="px-2 py-0.5 bg-blue-500/5 text-blue-400 text-[8px] font-black rounded-lg border border-blue-500/10 uppercase tracking-widest whitespace-nowrap h-fit">
+                                        {table ? table.name : id}
+                                    </span>
+                                );
+                            })}
                         </div>
                         <button 
                             onClick={handleGenerateSql} 
@@ -79,8 +120,8 @@ const QueryTab = ({
                     <div className="space-y-4 animate-in slide-in-from-top-4 text-left">
                         {!isComparing ? (
                             <div className="bg-[#020617] rounded-2xl overflow-hidden shadow-2xl border border-white/10 text-left relative">
-                                {isExecuting && <div className="absolute top-[40px] left-0 w-full h-0.5 bg-blue-900/10 overflow-hidden z-30"><div className="h-full bg-blue-500 animate-progress origin-left" /></div>}
-                                <div className="px-6 py-3 bg-white/5 border-b border-white/5 flex justify-between items-center text-slate-600 text-[8px] font-mono font-black tracking-[0.6em] uppercase">
+                                <div className="px-6 py-3 bg-white/5 border-b border-white/5 flex justify-between items-center text-slate-600 text-[8px] font-mono font-black tracking-[0.6em] uppercase relative">
+                                    {isExecuting && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-900/10 overflow-hidden z-30"><div className="h-full bg-blue-500 animate-progress origin-left" /></div>}
                                     <span className="flex items-center gap-2"><Code size={12} /> 활성 로직 노드</span>
                                     <div className="flex gap-2">
                                         <button onClick={handleAuditSql} disabled={isAuditing} className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20 transition-all text-[8px] font-black uppercase flex items-center gap-2 shadow-lg active:scale-95">{isAuditing ? <RefreshCw className="animate-spin" size={10} /> : <Stethoscope size={10} />} ✨ 쿼리 진단</button>
@@ -150,15 +191,32 @@ const QueryTab = ({
                                         <button onClick={() => setActiveTab('visualize')} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-black text-[8px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95 shadow-blue-900/20 text-left">시각화 분석 <ChevronRight size={12} /></button>
                                     </div>
                                 </div>
-                                <div className="overflow-x-auto text-[10px] text-left">
-                                    <table className="w-full border-collapse text-left">
+                                <div className="overflow-x-auto text-[10px] text-left border-t border-white/5">
+                                    <table className="w-full border-collapse text-left table-fixed min-w-[800px]">
                                         <thead className="bg-black/40">
-                                            <tr>{queryResult[0] && Object.keys(queryResult[0]).map(key => (<th key={key} className="px-6 py-4 font-black text-slate-700 uppercase tracking-widest text-left">{key}</th>))}</tr>
+                                            <tr>{queryResult[0] && Object.keys(queryResult[0]).map(key => (<th key={key} className="px-6 py-4 font-black text-slate-700 uppercase tracking-widest text-left border-r border-white/5 last:border-r-0">{key}</th>))}</tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
-                                            {queryResult.map((row, idx) => (<tr key={idx} className="hover:bg-white/5 transition-all duration-300">{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 font-bold text-slate-400">{val !== null && typeof val === 'object' ? JSON.stringify(val) : String(val ?? '')}</td>))}</tr>))}
+                                            {queryResult.slice(0, visibleRows).map((row, idx) => (
+                                                <tr key={idx} className="hover:bg-white/5 transition-all duration-300 group">
+                                                    {Object.values(row).map((val, i) => (
+                                                        <td key={i} className="px-6 py-4 font-bold text-slate-400 border-r border-white/5 group-hover:border-white/10 last:border-r-0 transition-colors">
+                                                            {val !== null && typeof val === 'object' ? JSON.stringify(val) : String(val ?? '')}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
+                                </div>
+                                {/* 인피니티 스크롤 로더 */}
+                                <div ref={tableLoaderRef} className="flex justify-center py-6 border-t border-white/5 bg-black/20">
+                                    {visibleRows < queryResult.length && (
+                                        <div className="flex items-center gap-2 text-slate-600 font-black text-[9px] uppercase tracking-[0.2em]">
+                                            <Loader2 className="animate-spin" size={12} />
+                                            <span>데이터 로드 중...</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
