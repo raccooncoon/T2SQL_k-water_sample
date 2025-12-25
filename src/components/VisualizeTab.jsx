@@ -52,14 +52,14 @@ const VisualizeTab = ({
                                 onChange={(e) => setVisualizePrompt(e.target.value)} 
                                 onKeyDown={(e) => e.key === 'Enter' && handleVisualizeInsight()} 
                                 placeholder="시각화 분석 요청을 입력하거나 위에 있는 프리셋을 선택하십시오..."
-                                className="w-full bg-transparent border-none text-slate-200 outline-none focus:ring-0 text-[11px] font-medium pr-28 py-1.5 text-left" 
+                                className="w-full bg-transparent border-none text-slate-200 outline-none focus:ring-0 text-[13px] font-bold pr-32 py-2 text-left" 
                             />
                             <button 
                                 onClick={() => handleVisualizeInsight()} 
                                 disabled={isAnalyzing || !currentChartData || !visualizePrompt} 
-                                className="absolute right-0 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-900/20 text-left"
+                                className="absolute right-0 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg text-[11px] font-black uppercase flex items-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-900/20 text-left"
                             >
-                                {isAnalyzing ? <RefreshCw className="animate-spin" size={12} /> : <Sparkles size={12} />} 분석 추천
+                                {isAnalyzing ? <RefreshCw className="animate-spin" size={14} /> : <Sparkles size={14} />} 분석 추천
                             </button>
                         </div>
                     </div>
@@ -184,11 +184,11 @@ const VisualizeTab = ({
                                 <div className="flex items-center justify-between border-b border-white/10 pb-6">
                                     <div className="flex items-center gap-4 text-left">
                                         <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/40">
-                                            <BrainCircuit size={28} className="text-white" />
+                                            <BrainCircuit size={32} className="text-white" />
                                         </div>
                                         <div>
-                                            <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">전략 분석 보고서</h3>
-                                            <p className="text-[9px] text-blue-400 font-mono uppercase tracking-[0.3em]">Neural Intelligence Synthesis</p>
+                                            <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">전략 분석 보고서</h3>
+                                            <p className="text-[10px] text-blue-400 font-mono uppercase tracking-[0.3em]">Neural Intelligence Synthesis</p>
                                         </div>
                                     </div>
                                     <div className="text-[10px] font-mono text-slate-500 flex items-center gap-2 uppercase tracking-widest">

@@ -78,10 +78,16 @@ const App = () => {
     const [previousSql, setPreviousSql] = useState('');
     const [tempRefinedSql, setTempRefinedSql] = useState('');
     const [isComparing, setIsComparing] = useState(false);
+    const [originalSqlBeforeFix, setOriginalSqlBeforeFix] = useState('');
     const [refineExplanation, setRefineExplanation] = useState('');
     const [refineInstruction, setRefineInstruction] = useState('');
     const [queryResult, setQueryResult] = useState(null);
     const [history, setHistory] = useState([]);
+    const [analysisHistory, setAnalysisHistory] = useState([
+        { id: 'sample-1', prompt: '소양강댐 수위 변동 분석', summary: '소양강댐 수위 변동' },
+        { id: 'sample-2', prompt: '저수율 90% 이상 댐 현황', summary: '고저수율 댐 현황' },
+        { id: 'sample-3', prompt: '최근 일주일 강수량 순위', summary: '주간 강수량 순위' }
+    ]);
     const [selectedHistoryId, setSelectedHistoryId] = useState(null);
     const [visualizePrompt, setVisualizePrompt] = useState('');
     const [chartConfig, setChartConfig] = useState({ type: 'area', xAxis: 'obs_dt', yAxis: 'cur_lvl', title: '데이터 변화 실시간 분석' });
@@ -93,12 +99,20 @@ const App = () => {
     const [isAuditing, setIsAuditing] = useState(false);
     const [analysisReport, setAnalysisReport] = useState('');
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+    const [executionError, setExecutionError] = useState(null);
+    const [isSelfHealing, setIsSelfHealing] = useState(false);
+    const [pendingFixedSql, setPendingFixedSql] = useState('');
+    const [fixedSqlExplanation, setFixedSqlExplanation] = useState('');
+    const [successfulRetryCount, setSuccessfulRetryCount] = useState(0);
+    const [generationSteps, setGenerationSteps] = useState([]);
+    const [currentStepIndex, setCurrentStepIndex] = useState(-1);
 
     const [selectedTables, setSelectedTables] = useState([]);
     const [tableSearchPrompt, setTableSearchPrompt] = useState('');
     const [isTableSearching, setIsTableSearching] = useState(false);
     const [joinRules, setJoinRules] = useState([]);
     const [isRelationshipSearching, setIsRelationshipSearching] = useState(false);
+    const [scenarios, setScenarios] = useState(scenarioList);
 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || ""; // API Key should be handled securely
 
@@ -199,9 +213,9 @@ const App = () => {
 
         // 5. 데이터 시뮬레이션 요청인 경우
         if (systemPrompt.includes("데이터 시뮬레이션")) {
-            const mockData = Array.from({ length: 10 }).map((_, i) => ({
+            const mockData = Array.from({ length: 50 }).map((_, i) => ({
                 '댐명': i % 2 === 0 ? '소양강댐' : '충주댐',
-                '관측일시': `2025-12-26 ${String(10 + i).padStart(2, '0')}:00`,
+                '관측일시': `2025-12-26 ${String(Math.floor(i/2)).padStart(2, '0')}:00`,
                 '현재수위': 185.0 + (Math.random() * 5),
                 '유입량': 400.0 + (Math.random() * 100),
                 '방류량': 300.0 + (Math.random() * 50)
@@ -226,7 +240,15 @@ const App = () => {
         }
 
         // 8. 기본 SQL 생성 요청 (마지막 순서)
-        return "SELECT \n  t1.dam_nm AS '댐명', \n  t2.obs_dt AS '관측일시', \n  t2.cur_lvl AS '현재수위', \n  t3.temp AS '수온', \n  t3.ph AS '수소이온농도', \n  t4.hr_rf AS '시강수량'\nFROM tb_dam_info t1\nJOIN tb_dam_obs_h t2 ON t1.dam_cd = t2.dam_cd\nLEFT JOIN wq_obs_h t3 ON t1.dam_cd = t3.dam_cd AND t2.obs_dt = t3.obs_dt\nLEFT JOIN rf_obs_h t4 ON t2.obs_dt = t4.obs_dt\nORDER BY t2.obs_dt DESC\nLIMIT 10;";
+        if (userQuery.includes("강수") || userQuery.includes("기상")) {
+            return "SELECT \n  t1.stn_nm AS '관측소명', \n  t2.obs_dt AS '관측일시', \n  t2.hr_rf AS '시강수량', \n  t2.acc_rf AS '누적강수량', \n  t3.warn_type AS '특보종류', \n  t3.warn_lvl AS '특보등급'\nFROM rf_stn_info t1\nJOIN rf_obs_h t2 ON t1.stn_cd = t2.stn_cd\nLEFT JOIN wt_warn_h t3 ON t1.stn_cd = t3.stn_cd AND t2.obs_dt BETWEEN t3.start_dt AND t3.end_dt\nWHERE t2.hr_rf > 0\nORDER BY t2.obs_dt DESC\nLIMIT 10;";
+        }
+
+        if (userQuery.includes("수질") || userQuery.includes("BOD")) {
+            return "SELECT \n  t1.dam_nm AS '댐명', \n  t2.obs_dt AS '측정일시', \n  t2.temp AS '수온', \n  t2.ph AS '수소이온농도', \n  t2.bod AS 'BOD', \n  t2.cod AS 'COD'\nFROM tb_dam_info t1\nJOIN wq_obs_h t2 ON t1.dam_cd = t2.dam_cd\nWHERE t2.bod > 2.0\nORDER BY t2.obs_dt DESC\nLIMIT 10;";
+        }
+
+        return "SELECT \n  t1.dam_nm AS '댐명', \n  t2.obs_dt AS '관측일시', \n  t2.cur_lvl AS '현재수위', \n  t2.inf_qty AS '유입량', \n  t2.otf_qty AS '방류량', \n  t3.rsv_rate AS '저수율'\nFROM tb_dam_info t1\nJOIN tb_dam_obs_h t2 ON t1.dam_cd = t2.dam_cd\nLEFT JOIN tb_dam_op_h t3 ON t1.dam_cd = t3.dam_cd AND t2.obs_dt = t3.obs_dt\nORDER BY t2.obs_dt DESC\nLIMIT 10;";
     };
 
     const handleAiRelationshipSuggestion = async (targetTableIds = selectedTables) => {
@@ -277,14 +299,85 @@ const App = () => {
         if (!prompt) return;
         setIsGenerating(true);
         setQueryResult(null);
+        setSelectedHistoryId(null); // 새로운 SQL 생성 시 기존 선택된 히스토리 초기화
         setIsComparing(false);
         setSqlAudit(null);
+
+        // AI 추론 단계 정의
+        const steps = [
+            { 
+                id: 1, 
+                label: "질문 분석", 
+                detail: "자연어 질의의 의도 및 핵심 키워드 추출", 
+                icon: "search",
+                data: {
+                    keywords: ["댐", "수위", "변동", "분석", "최근 24시간"],
+                    expanded: [
+                        "최근 24시간 동안의 시간별 수위 데이터 조회",
+                        "선택된 댐(소양강, 충주)에 대한 필터링 조건 생성",
+                        "시간 흐름에 따른 변동 추이 계산 준비"
+                    ]
+                }
+            },
+            { 
+                id: 2, 
+                label: "메타데이터 로딩", 
+                detail: "선택된 테이블 및 컬럼 정의 분석", 
+                icon: "database",
+                data: {
+                    tables: [
+                        { name: "tb_dam_info", comment: "댐의 기본 마스터 정보 (이름, 하천명 등)" },
+                        { name: "tb_dam_obs_h", comment: "댐의 시간대별 수위 및 유입/방류량 관측 데이터" }
+                    ]
+                }
+            },
+            { 
+                id: 3, 
+                label: "스키마 관계 매핑", 
+                detail: "JOIN 규칙 및 데이터 계보 확인", 
+                icon: "git-merge",
+                data: {
+                    mapping: "tb_dam_info.dam_cd = tb_dam_obs_h.dam_cd (1:N 관계)",
+                    joinType: "INNER JOIN"
+                }
+            },
+            { 
+                id: 4, 
+                label: "쿼리 실행 계획 수립", 
+                detail: "SQL 구조 설계 및 최적화 전략", 
+                icon: "brain-circuit",
+                data: {
+                    strategy: "Index scan on obs_dt",
+                    optimization: "Column-wise aggregation for performance"
+                }
+            },
+            { 
+                id: 5, 
+                label: "SQL 구문 합성", 
+                detail: "Dialect 최적화 및 최종 구문 생성", 
+                icon: "code",
+                data: {
+                    dialect: "Standard SQL",
+                    formatting: "Pretty Print with AS Aliases"
+                }
+            }
+        ];
+        setGenerationSteps(steps);
+        setCurrentStepIndex(0);
+
         const tableContext = tables.filter(t => selectedTables.includes(t.id)).map(t => {
             const colsWithNames = t.columns.map(c => `${c}(${t.columnNames[c] || ''})`).join(',');
             return `${t.name}(${t.id}): [${colsWithNames}]`;
         }).join('\n');
         const manualJoins = joinRules.map(r => `${r.leftTable}.${r.leftCol} ${r.type} ${r.rightTable}.${r.rightCol}`).join('\n');
+        
         try {
+            // 단계별 시뮬레이션
+            for (let i = 0; i < steps.length; i++) {
+                setCurrentStepIndex(i);
+                await new Promise(r => setTimeout(r, 600));
+            }
+
             const sql = await callGemini(prompt, `Pretty SQL 코드만 출력. 
             [제약사항] 모든 SELECT 컬럼에는 반드시 'AS'를 사용하여 한글 별칭을 붙이세요. 예: SELECT t1.dam_nm AS '댐명'
             스키마:
@@ -293,10 +386,37 @@ const App = () => {
             ${manualJoins}`);
             const cleanedSql = (sql || "").replace(/```sql|```/g, '').trim();
             setGeneratedSql(cleanedSql);
-            const newItem = { id: Date.now(), prompt, sql: cleanedSql, timestamp: new Date().toLocaleTimeString(), results: null };
-            setHistory(prev => [newItem, ...prev]);
-            setSelectedHistoryId(newItem.id);
-        } catch (e) {} finally { setIsGenerating(false); }
+            
+            const timestamp = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            
+            // 사이드바 전용 검색 히스토리
+            const newHistoryItem = { 
+                id: Date.now(), 
+                prompt, 
+                sql: cleanedSql, 
+                timestamp, 
+                results: null 
+            };
+            
+            // 상단 카드 전용 요약 히스토리 (중복 제거 및 최신화)
+            const newAnalysisItem = {
+                id: Date.now() + 1,
+                prompt,
+                summary: prompt.length > 20 ? prompt.substring(0, 20) + "..." : prompt
+            };
+
+            setHistory(prev => [newHistoryItem, ...prev]);
+            setAnalysisHistory(prev => {
+                const filtered = prev.filter(item => item.prompt !== prompt);
+                return [newAnalysisItem, ...filtered].slice(0, 10);
+            });
+            
+            setSelectedHistoryId(newHistoryItem.id);
+            // setCurrentStepIndex(-1); // 완료 후에도 상태를 유지하기 위해 주석 처리하거나 제거
+            setCurrentStepIndex(steps.length - 1); // 마지막 단계 완료 상태로 유지
+        } catch (e) {
+            setCurrentStepIndex(-1);
+        } finally { setIsGenerating(false); }
     };
 
     const handleRefineSql = async () => {
@@ -316,23 +436,117 @@ const App = () => {
 
     const handleExecuteQuery = async () => {
         if (!generatedSql) return;
+        
+        // 시뮬레이션을 위한 에러 트리거 조건 (정확히 이 질문일 때만)
+        const isErrorScenario = prompt.trim() === '최근 일주일 강수량 순위';
+        
         setIsExecuting(true);
+        setExecutionError(null);
+        setPendingFixedSql('');
+        setFixedSqlExplanation('');
+        
         try {
-            const res = await callGemini("데이터 시뮬레이션.", `질문 [${prompt}] 부합 수문 데이터 50행 JSON 배열 생성. 필드명 엄수: dam_nm, obs_dt, cur_lvl, inf_qty, otf_qty.`, true);
-            const data = JSON.parse(res);
+            // 특정 시나리오에서만 의도적으로 에러 발생
+            if (isErrorScenario && !successfulRetryCount && !originalSqlBeforeFix) {
+                await new Promise(r => setTimeout(r, 600)); // 지연 효과
+                throw new Error(`[데이터베이스 응답 오류]: 'RSV_RATE' 컬럼을 찾을 수 없습니다. (ORA-00904)`);
+            }
+
+            const res = await callGemini("데이터 시뮬레이션", `질문 [${prompt}] 부합 수문 데이터 50행 JSON 배열 생성. 필드명 엄수: dam_nm, obs_dt, cur_lvl, inf_qty, otf_qty.`, true);
+            let data;
+            try {
+                data = JSON.parse(res);
+            } catch (parseError) {
+                // JSON 파싱 실패 시 기본 데이터 생성
+                data = Array.from({ length: 50 }).map((_, i) => ({
+                    '댐명': i % 2 === 0 ? '소양강댐' : '충주댐',
+                    '관측일시': `2025-12-26 ${String(Math.floor(i/2)).padStart(2, '0')}:00`,
+                    '현재수위': 185.0 + (Math.random() * 5),
+                    '유입량': 400.0 + (Math.random() * 100),
+                    '방류량': 300.0 + (Math.random() * 50)
+                }));
+            }
+            
             setQueryResult(data);
             setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, results: data } : h));
+            
+            setSuccessfulRetryCount(prev => prev + 1);
+            setIsExecuting(false);
+            setIsSelfHealing(false);
         } catch (e) {
-            const mock = Array.from({ length: 50 }).map((_, i) => ({ 
-                '댐명': i % 2 === 0 ? '소양강댐' : '충주댐', 
-                '관측일시': `12-26 ${Math.floor(i/2)}:00`, 
-                '현재수위': 185.0 + (i * 0.1), 
-                '유입량': 400.0 + i, 
-                '방류량': 300.0 + i 
-            }));
-            setQueryResult(mock);
-            setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, results: mock } : h));
-        } finally { setIsExecuting(false); }
+            const errorMsg = e.message || "쿼리 실행 중 알 수 없는 오류가 발생했습니다.";
+            console.error("Query Execution Error:", errorMsg);
+            
+            setExecutionError(errorMsg);
+            setQueryResult(null);
+            setIsExecuting(false);
+            
+            // 자동 재시도 대신 AI에게 수정 요청
+            handleSelfHealSql();
+        }
+    };
+
+    const handleSelfHealSql = async () => {
+        if (!generatedSql || !executionError) {
+            setIsSelfHealing(false);
+            return;
+        }
+        setIsSelfHealing(true);
+        
+        try {
+            const tableContext = tables.filter(t => selectedTables.includes(t.id)).map(t => {
+                const colsWithNames = t.columns.map(c => `${c}(${t.columnNames[c] || ''})`).join(',');
+                return `${t.name}(${t.id}): [${colsWithNames}]`;
+            }).join('\n');
+
+            const res = await callGemini(
+                `[SQL] ${generatedSql}\n[오류 메시지] ${executionError}\n[사용 가능 스키마]\n${tableContext}`, 
+                `SQL 복구 전문가. 발생한 오류를 분석하여 올바른 SQL로 수정하세요. JSON 응답: {"explanation": "오류 원인 및 수정 내용", "fixedSql": "수정된SQL"}`, 
+                true
+            );
+            const data = JSON.parse(res);
+            
+            // 즉시 적용하지 않고 승인 대기 상태로 설정
+            setPendingFixedSql(data.fixedSql);
+            setFixedSqlExplanation(data.explanation);
+            
+            setIsSelfHealing(false);
+
+        } catch (e) {
+            setExecutionError("AI 복구 시도 중 오류가 발생했습니다: " + e.message);
+            setIsSelfHealing(false);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedHistoryId) {
+            const item = history.find(h => h.id === selectedHistoryId);
+            if (item) {
+                setGeneratedSql(item.sql || '');
+                setOriginalSqlBeforeFix(item.originalSql || '');
+                setSuccessfulRetryCount(item.retryCount || 0);
+                setQueryResult(item.results || null);
+                setPrompt(item.prompt || '');
+            }
+        }
+    }, [selectedHistoryId]);
+
+    const handleApplyFixedSql = () => {
+        if (!pendingFixedSql) return;
+        
+        const fixedSql = pendingFixedSql;
+        const originalSql = generatedSql;
+        setOriginalSqlBeforeFix(originalSql); // 수정 전 쿼리 저장
+        setGeneratedSql(fixedSql);
+        setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, sql: fixedSql, originalSql: originalSql, retryCount: (h.retryCount || 0) + 1 } : h));
+        
+        // 상태 초기화
+        setPendingFixedSql('');
+        setFixedSqlExplanation('');
+        setExecutionError(null);
+        
+        // 수정된 쿼리로 재실행
+        handleExecuteQuery();
     };
 
     const handleVisualizeInsight = async () => {
@@ -450,9 +664,26 @@ const App = () => {
                                 handleDiscardRefinedSql={handleDiscardRefinedSql}
                                 previousSql={previousSql}
                                 tempRefinedSql={tempRefinedSql}
+                                originalSqlBeforeFix={originalSqlBeforeFix}
                                 queryResult={currentChartData}
+                                executionError={executionError}
+                                isSelfHealing={isSelfHealing}
+                                handleSelfHealSql={handleSelfHealSql}
+                                pendingFixedSql={pendingFixedSql}
+                                fixedSqlExplanation={fixedSqlExplanation}
+                                handleApplyFixedSql={handleApplyFixedSql}
                                 handleDownloadExcel={handleDownloadExcel}
                                 setActiveTab={setActiveTab}
+                                successfulRetryCount={successfulRetryCount}
+                                scenarios={scenarios}
+                                setScenarios={setScenarios}
+                                history={history}
+                                selectedHistoryId={selectedHistoryId}
+                                setSelectedHistoryId={setSelectedHistoryId}
+                                generationSteps={generationSteps}
+                                currentStepIndex={currentStepIndex}
+                                analysisHistory={analysisHistory}
+                                successfulRetryCount={successfulRetryCount}
                             />
                         </div>
                     )}

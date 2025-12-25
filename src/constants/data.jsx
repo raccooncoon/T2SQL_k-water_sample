@@ -9,10 +9,14 @@ export const visualPresets = [
 ];
 
 export const scenarioList = [
-    { title: "최근 24시간 수위 변동", prompt: "지난 24시간 동안 소양강댐과 충주댐의 수위 변화 비교 분석" },
-    { title: "위험 수위 도달 분석", prompt: "현재 수위가 제한 수위(limit_lvl) 95% 이상인 댐 현황" },
-    { title: "강수량-유입량 상관관계", prompt: "최근 일주일간의 관측소 강수량과 주요 댐 유입량 상관관계" },
-    { title: "전국 댐 저수율 현황", prompt: "전국 다목적댐 현재 저수율 계산 리스트" }
+    { title: "최근 24시간 수위 변동", prompt: "지난 24시간 동안 소양강댐과 충주댐의 수위 변화 비교 분석", count: 1250 },
+    { title: "위험 수위 도달 분석", prompt: "현재 수위가 제한 수위(limit_lvl) 95% 이상인 댐 현황", count: 980 },
+    { title: "강수량-유입량 상관관계", prompt: "최근 일주일간의 관측소 강수량과 주요 댐 유입량 상관관계", count: 850 },
+    { title: "전국 댐 저수율 현황", prompt: "전국 다목적댐 현재 저수율 계산 리스트", count: 720 },
+    { title: "수력 발전 효율 순위", prompt: "발전 효율이 높은 상위 5개 댐의 발전량 분석", count: 640 },
+    { title: "수질(BOD) 기준 초과 지점", prompt: "댐 수질 데이터 중 BOD 수치가 기준치를 초과한 관측소", count: 520 },
+    { title: "관측소별 누적 강수량", prompt: "강수 관측소별 최근 한달간의 누적 강수량 순위", count: 480 },
+    { title: "댐 방류 이력 조회", prompt: "최근 집중호우 기간 동안의 댐별 방류량 및 시간 분석", count: 390 }
 ];
 
 export const tables = [

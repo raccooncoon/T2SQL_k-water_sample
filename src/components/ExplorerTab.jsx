@@ -73,7 +73,7 @@ const ExplorerTab = ({
                             <Sparkles size={24} />
                         </div>
                         <div className="flex-1 text-left">
-                            <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] mb-1 pl-1">
+                            <h3 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.4em] mb-1 pl-1">
                                 지능형 컨텍스트 구성기
                             </h3>
                             <div className="flex gap-4 text-left">
@@ -82,14 +82,14 @@ const ExplorerTab = ({
                                     onChange={(e) => setTableSearchPrompt(e.target.value)} 
                                     onKeyDown={(e) => e.key === 'Enter' && handleAiTableSelection()} 
                                     placeholder="데이터 특징 기술 (예: 강수데이터 보여줘)..." 
-                                    className="flex-1 bg-transparent border-none focus:ring-0 text-xl font-bold text-white placeholder:text-slate-800 text-left" 
+                                    className="flex-1 bg-transparent border-none focus:ring-0 text-2xl font-bold text-white placeholder:text-slate-800 text-left" 
                                 />
                                 <button 
                                     onClick={handleAiTableSelection} 
                                     disabled={isTableSearching} 
-                                    className="bg-blue-600 text-white px-10 py-2 rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 transition-all"
+                                    className="bg-blue-600 text-white px-10 py-2 rounded-xl font-black text-[11px] uppercase shadow-md active:scale-95 transition-all"
                                 >
-                                    {isTableSearching ? <RefreshCw className="animate-spin" size={14} /> : "Context 탐색"}
+                                    {isTableSearching ? <RefreshCw className="animate-spin" size={16} /> : "Context 탐색"}
                                 </button>
                             </div>
                         </div>
@@ -113,13 +113,13 @@ const ExplorerTab = ({
                                 </div>
                                 {selectedTables.includes(table.id) && <CheckCircle2 size={20} className="text-blue-500 animate-in zoom-in" />}
                             </div>
-                            <h3 className="font-black text-sm text-white truncate uppercase tracking-tight text-left flex items-center gap-2">
+                            <h3 className="font-black text-base text-white truncate uppercase tracking-tight text-left flex items-center gap-2">
                                 {table.name}
                             </h3>
-                            <p className="text-[9px] text-slate-700 font-mono mb-4 uppercase tracking-widest text-left group-hover:text-slate-500 transition-colors">
+                            <p className="text-[10px] text-slate-700 font-mono mb-4 uppercase tracking-widest text-left group-hover:text-slate-500 transition-colors">
                                 {table.id}
                             </p>
-                            <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity">
+                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity">
                                 {table.description}
                             </p>
                         </div>
