@@ -5,7 +5,7 @@ import {
     Play,
     BarChart2,
     Plus,
-    CheckCircle2,
+    CircleCheckBig,
     MessageSquare,
     ChevronRight,
     Zap,
@@ -40,7 +40,7 @@ import {
     BrainCircuit,
     Copy,
     Lightbulb,
-    AlertTriangle,
+    TriangleAlert,
     Activity as ActivityIcon,
     Settings,
     LineChart as LineChartIcon,
@@ -98,6 +98,7 @@ const App = () => {
     const [sqlAudit, setSqlAudit] = useState(null);
     const [isAuditing, setIsAuditing] = useState(false);
     const [analysisReport, setAnalysisReport] = useState('');
+    const [reportHistory, setReportHistory] = useState([]);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [executionError, setExecutionError] = useState(null);
     const [isSelfHealing, setIsSelfHealing] = useState(false);
@@ -119,6 +120,16 @@ const App = () => {
     const getTableColumns = (tableId) => tables.find(t => t.id === tableId)?.columns || [];
     const currentChartData = useMemo(() => history.find(h => h.id === selectedHistoryId)?.results || queryResult, [history, selectedHistoryId, queryResult]);
     const availableColumns = useMemo(() => currentChartData?.length ? Object.keys(currentChartData[0]) : [], [currentChartData]);
+
+    useEffect(() => {
+        if (availableColumns.length >= 2) {
+            setChartConfig(prev => ({
+                ...prev,
+                xAxis: availableColumns.includes('obs_dt') ? 'obs_dt' : (availableColumns.includes('관측일시') ? '관측일시' : availableColumns[0]),
+                yAxis: availableColumns.includes('cur_lvl') ? 'cur_lvl' : (availableColumns.includes('현재수위') ? '현재수위' : availableColumns[1])
+            }));
+        }
+    }, [availableColumns]);
 
     useEffect(() => {
         // 테이블 선택 변경에 따른 JOIN 규칙 자동 동기화
@@ -468,7 +479,9 @@ const App = () => {
             }
             
             setQueryResult(data);
-            setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, results: data } : h));
+            if (selectedHistoryId) {
+                setHistory(prev => prev.map(h => h.id === selectedHistoryId ? { ...h, results: data } : h));
+            }
             
             setSuccessfulRetryCount(prev => prev + 1);
             setIsExecuting(false);
@@ -577,6 +590,16 @@ const App = () => {
         try {
             const report = await callGemini(`데이터: ${JSON.stringify(currentChartData.slice(0, 10))}`, `K-water 분석가. 마크다운으로 실제 데이터 표를 포함한 경영진 전략 보고서 작성.`);
             setAnalysisReport(report);
+            
+            // 보고서 히스토리에 추가
+            const newReport = {
+                id: `report-${Date.now()}`,
+                title: `${prompt || '데이터 분석'} 보고서`,
+                content: report,
+                timestamp: new Date().toLocaleString(),
+                dataCount: currentChartData.length
+            };
+            setReportHistory(prev => [newReport, ...prev]);
         } catch (e) {} finally { setIsGeneratingReport(false); }
     };
 
@@ -718,6 +741,8 @@ const App = () => {
                                 handleGenerateReport={handleGenerateReport}
                                 analysisReport={analysisReport}
                                 aiInsight={aiInsight}
+                                reportHistory={reportHistory}
+                                setAnalysisReport={setAnalysisReport}
                             />
                         </div>
                     )}

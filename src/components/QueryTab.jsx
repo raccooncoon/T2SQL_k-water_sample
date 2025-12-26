@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListOrdered, SearchCode, Sparkles, Terminal, RefreshCw, Code, Stethoscope, Play, Loader2, Wand2, Info, Check, X, LayoutDashboard, FileSpreadsheet, ChevronRight, Settings2, Filter, Eye, EyeOff, Trophy, Clock, TrendingUp, ChevronUp, ChevronDown, Database, GitMerge, BrainCircuit, AlertTriangle, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { SearchCode, Sparkles, Terminal, RefreshCw, Code, Stethoscope, Play, Loader2, Wand2, Info, Check, X, LayoutDashboard, FileSpreadsheet, ChevronRight, Settings2, Filter, Eye, EyeOff, Trophy, Clock, TrendingUp, ChevronUp, ChevronDown, Database, GitMerge, BrainCircuit, TriangleAlert, RotateCcw, CircleCheckBig } from 'lucide-react';
 import SqlHighlighter from './SqlHighlighter';
 import { tables, scenarioList } from '../constants/data';
 
@@ -510,7 +510,7 @@ const QueryTab = ({
                                             <div className="space-y-2 relative">
                                                 <div className="flex items-center justify-between px-2">
                                                     <span className="text-[8px] font-black text-red-500/70 uppercase tracking-widest flex items-center gap-1.5">
-                                                        <AlertTriangle size={10} /> 이전 쿼리 (오류 발생)
+                                                        <TriangleAlert size={10} /> 이전 쿼리 (오류 발생)
                                                     </span>
                                                 </div>
                                                 <div className="p-4 bg-red-500/5 rounded-xl border border-red-500/10 opacity-70">
@@ -520,7 +520,7 @@ const QueryTab = ({
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between px-2">
                                                     <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
-                                                        <CheckCircle2 size={10} /> 수정된 쿼리 (동작 완료)
+                                                        <CircleCheckBig size={10} /> 수정된 쿼리 (동작 완료)
                                                     </span>
                                                 </div>
                                                 <div className="p-4 bg-blue-600/10 rounded-xl border border-blue-500/30 shadow-inner">
@@ -595,7 +595,7 @@ const QueryTab = ({
                                     <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
                                         <div className="flex gap-6 items-start">
                                             <div className="p-4 bg-red-500/10 text-red-500 rounded-2xl border border-red-500/20 group-hover:scale-110 transition-transform">
-                                                {isSelfHealing ? <RefreshCw size={32} className="animate-spin" /> : (pendingFixedSql ? <Wand2 size={32} className="text-blue-500" /> : <AlertTriangle size={32} />)}
+                                                {isSelfHealing ? <RefreshCw size={32} className="animate-spin" /> : (pendingFixedSql ? <Wand2 size={32} className="text-blue-500" /> : <TriangleAlert size={32} />)}
                                             </div>
                                             <div className="space-y-3">
                                                 <div className="flex items-center gap-2">
